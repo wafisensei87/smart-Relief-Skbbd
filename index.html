@@ -309,6 +309,8 @@ table.induk input{width:100%;padding:8px;border:1.5px solid var(--garis);border-
           <option value="Ahad,Isnin,Selasa,Rabu,Khamis">Ahad – Khamis (Kedah, Kelantan, Terengganu)</option>
           <option value="Isnin,Selasa,Rabu,Khamis,Jumaat">Isnin – Jumaat</option></select></div>
         <div class="medan"><label>No. WhatsApp Pentadbir (untuk terima pengesahan guru)</label><input id="tTelAdmin" placeholder="0123456789"></div>
+        <div class="medan"><label>Alamat Laman SmartRelief (untuk pautan pengesahan dalam WhatsApp)</label><input id="tUrlAwam" placeholder="https://nama-anda.github.io/smartrelief/">
+          <div class="subteks" style="margin-top:4px">Isi alamat GitHub Pages. Jika kosong, pautan menggunakan alamat fail di komputer ini dan tidak boleh dibuka di telefon guru.</div></div>
         <div class="medan"><label>ID Admin</label><input id="tId" autocomplete="off"></div>
         <div class="medan"><label>Kata Laluan Baharu (biar kosong jika tidak ditukar)</label><input id="tPass" type="password" autocomplete="new-password"></div>
         <button class="btn btnUngu" id="btnSimpanTetapan">💾 Simpan Tetapan</button>
@@ -514,12 +516,14 @@ function janaAutomatik() {
 }
 
 /* ---------- WhatsApp ---------- */
+/* Alamat laman untuk pautan: alamat awam di Tetapan (cth. GitHub Pages), jika tiada guna alamat semasa */
+function alamatLaman() { return (S.tetapan.urlAwam || location.href.split('#')[0].split('?')[0]).trim(); }
 function pautanSahkan(gid) {
   const r = rekodHari();
-  const slotGuru = Object.entries(r.agih).filter(([, v]) => v.ganti === gid).map(([k]) => k);
-  const data = { t: tarikh, g: gid, n: guruById(gid)?.nama, s: slotGuru, a: telWa(S.tetapan.telAdmin), sk: S.tetapan.sekolah };
-  const kod = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  return location.href.split('#')[0] + '#sahkan=' + encodeURIComponent(kod);
+  const waktu = [...new Set(Object.entries(r.agih).filter(([, v]) => v.ganti === gid).map(([k]) => Number(k.split('|')[1]) + 1))].sort((a, b) => a - b);
+  const p = new URLSearchParams({ t: tarikh, g: gid, w: waktu.join('.'), n: guruById(gid)?.nama || '' });
+  if (S.tetapan.telAdmin) p.set('a', telWa(S.tetapan.telAdmin));
+  return alamatLaman() + '#sahkan?' + p.toString();
 }
 function mesejWa(gid) {
   const g = guruById(gid), r = rekodHari(), slots = senaraiSlotGanti().filter(s => r.agih[s.kunci]?.ganti === gid);
@@ -539,6 +543,7 @@ function modalHantarSemua() {
   if (!ids.length) { toast('Jana jadual ganti dahulu.'); return; }
   bukaModal(`<h3>💬 Hantar kepada semua guru ganti</h3>
     <p class="subteks">Pelayar hanya membenarkan satu tetingkap WhatsApp dibuka setiap klik. Klik setiap butang mengikut turutan.</p>
+    ${/^https:/.test(alamatLaman()) ? '' : '<p class="subteks" style="color:var(--merah)">⚠ Pautan pengesahan tidak boleh dibuka di telefon guru kerana sistem dibuka dari fail komputer. Isi <b>Alamat Laman SmartRelief</b> di Tetapan.</p>'}
     ${ids.map(id => { const g = guruById(id), n = Object.values(r.agih).filter(v => v.ganti === id).length, dah = Object.values(r.agih).some(v => v.ganti === id && v.dihantar);
       return `<div class="waItem"><div class="info"><b>${esc(g.nama)}</b><br>${n} slot · ${esc(g.tel || 'tiada no. telefon')}</div>
       <button class="btn btnKecil ${dah ? 'btnPutih' : 'btnHijau'}" onclick="hantarWa('${id}');modalHantarSemua()">${dah ? '✓ Dihantar' : '💬 Hantar'}</button></div>`; }).join('')}
@@ -684,6 +689,7 @@ function lukisTetapan() {
   const t = S.tetapan;
   $('tSekolah').value = t.sekolah; $('tTelAdmin').value = t.telAdmin; $('tId').value = t.adminId; $('tPass').value = '';
   $('tMinggu').value = t.hari.join(',');
+  $('tUrlAwam').value = t.urlAwam || (/^https?:/.test(location.href) ? location.href.split('#')[0] : '');
   $('badanSlot').innerHTML = t.slots.map((s, i) => `<tr><td><span class="wBadge">${slotLabel(i)}</span></td>
     <td><input type="time" class="inp" data-s="${i}" data-f="mula" value="${s.mula}"></td>
     <td><input type="time" class="inp" data-s="${i}" data-f="tamat" value="${s.tamat}"></td>
@@ -940,24 +946,41 @@ function lukisSemua() {
 }
 
 /* ---------- Halaman pengesahan guru (dibuka dari pautan WhatsApp) ---------- */
-function halamanSahkan(kod) {
-  let d; try { d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(kod))))); } catch (e) { d = null; }
+function bacaPautanSahkan(hash) {
+  try {
+    if (hash.startsWith('#sahkan?')) {                     // format baharu: #sahkan?t=..&g=..&w=7.8&n=..&a=..
+      const p = new URLSearchParams(hash.slice(8));
+      const w = (p.get('w') || '').split('.').filter(Boolean).map(Number);
+      if (!p.get('t') || !w.length) return null;
+      return { t: p.get('t'), g: p.get('g'), n: p.get('n'), a: p.get('a'), w };
+    }
+    const m = hash.match(/^#sahkan=(.+)$/);                // format lama (base64)
+    if (m) { const d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); return { ...d, w: d.s.map(k => Number(k.split('|')[1]) + 1) }; }
+  } catch (e) {}
+  return null;
+}
+function halamanSahkan(d) {
   $('skrinSahkan').classList.remove('hidden');
   const kotak = $('kotakSahkan');
   if (!d) { kotak.innerHTML = '<h1 class="serif">Pautan tidak sah</h1>'; return; }
-  kotak.innerHTML = `<span class="lencana">PENGESAHAN GURU GANTI</span>
+  const senaraiW = d.w.map(n => 'W' + n).join(', ');
+  kotak.innerHTML = `<div class="logo" style="margin:0 auto 12px;width:72px;height:72px">${logoHtml()}</div>
+    <span class="lencana">PENGESAHAN GURU GANTI</span>
     <h1 class="serif">Salam, ${esc(d.n)}</h1>
-    <p>Anda dilantik sebagai guru ganti pada <b>${fmtTarikh(d.t)}</b> (${d.s.length} slot) di ${esc(d.sk)}.</p>
+    <p>Anda dilantik sebagai guru ganti pada <b>${fmtTarikh(d.t)}</b>, waktu <b>${senaraiW}</b> di ${esc(S.tetapan.sekolah)}.</p>
     <button class="btn btnHijau penuh" id="btnSah">✓ SAHKAN TUGASAN</button><div class="ralat" id="infoSah" style="color:var(--hijau)"></div>`;
   $('btnSah').onclick = () => {
     // Jika dibuka pada peranti pentadbir, terus kemas kini status
     let ok = false;
     try {
-      const st = JSON.parse(localStorage.getItem(KUNCI));
-      if (st?.harian?.[d.t]) { d.s.forEach(k => { const a = st.harian[d.t].agih[k]; if (a && a.ganti === d.g) { a.sah = true; ok = true; } }); if (ok) localStorage.setItem(KUNCI, JSON.stringify(st)); }
+      const st = JSON.parse(localStorage.getItem(KUNCI)), ag = st?.harian?.[d.t]?.agih;
+      if (ag) {
+        Object.entries(ag).forEach(([k, a]) => { if (a.ganti === d.g && d.w.includes(Number(k.split('|')[1]) + 1)) { a.sah = true; ok = true; } });
+        if (ok) localStorage.setItem(KUNCI, JSON.stringify(st));
+      }
     } catch (e) {}
     if (ok) { $('infoSah').textContent = 'Terima kasih! Status anda kini Sah.'; return; }
-    const teks = `SAH ✓ ${d.n} mengesahkan tugasan guru ganti pada ${fmtTarikh(d.t)} (${d.s.length} slot).`;
+    const teks = `SAH ✓ ${d.n} mengesahkan tugasan guru ganti pada ${fmtTarikh(d.t)} (${senaraiW}).`;
     if (d.a) location.href = 'https://wa.me/' + d.a + '?text=' + encodeURIComponent(teks);
     else $('infoSah').textContent = 'Terima kasih! Sila maklumkan pentadbir bahawa anda telah sahkan.';
   };
@@ -966,8 +989,7 @@ function halamanSahkan(kod) {
 /* ---------- Mula ---------- */
 async function mula() {
   await muat();
-  const m = location.hash.match(/^#sahkan=(.+)$/);
-  if (m) { halamanSahkan(m[1]); return; }
+  if (location.hash.startsWith('#sahkan')) { halamanSahkan(bacaPautanSahkan(location.hash)); return; }
   $$('.namaSekolah').forEach(e => e.textContent = S.tetapan.sekolah);
   let masuk = false; try { masuk = sessionStorage.getItem('sr_masuk') === '1'; } catch (e) {}
   if (masuk) bukaApp(); else $('skrinLogin').classList.remove('hidden');
@@ -1019,7 +1041,10 @@ $('borangGuru').onsubmit = e => {
 };
 $('btnSimpanTetapan').onclick = async () => {
   const t = S.tetapan;
-  t.sekolah = $('tSekolah').value.trim() || t.sekolah; t.telAdmin = $('tTelAdmin').value.trim(); t.adminId = $('tId').value.trim() || t.adminId;
+  t.sekolah = $('tSekolah').value.trim() || t.sekolah; t.telAdmin = $('tTelAdmin').value.trim();
+  const url = $('tUrlAwam').value.trim();
+  if (url && !/^https:\/\//.test(url)) { toast('Alamat laman mesti bermula dengan https://'); return; }
+  t.urlAwam = url.split('#')[0]; t.adminId = $('tId').value.trim() || t.adminId;
   if ($('tPass').value) t.passHash = await hash($('tPass').value);
   if ($('tMinggu').value) { t.hari = $('tMinggu').value.split(','); HARI = t.hari; isiPilihanHari(); }
   simpan(); lukisSemua(); lukisTetapan(); toast('Tetapan disimpan');

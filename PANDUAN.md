@@ -44,6 +44,10 @@ Dalam upload pukal, lajur **Pentadbir** boleh diisi Ya / Tidak.
   sebagai guru ganti untuk kelas lain.
 
 ## Pengesahan guru
+Selepas sistem diletak di GitHub Pages, isi **Tetapan → Alamat Laman SmartRelief**
+(cth. `https://nama-anda.github.io/smartrelief/`). Pautan dalam WhatsApp akan jadi seperti:
+`https://nama-anda.github.io/smartrelief/#sahkan?t=2026-10-28&g=...&w=7.8&n=NAMA+GURU`
+
 Guru buka pautan dalam WhatsApp → tekan **Sahkan** → WhatsApp terbuka untuk membalas "SAH" kepada
 pentadbir. Pentadbir kemudian tekan butang **Belum Sah** supaya bertukar **Sah** (hijau).
 (Status tidak boleh bertukar sendiri dari telefon guru kerana sistem ini tiada pelayan/server.)
