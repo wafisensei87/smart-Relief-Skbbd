@@ -501,7 +501,11 @@ function janaAutomatik() {
   if (!semua.length) { toast('Tiada slot ganti. Tandakan guru CUTI dahulu.'); return; }
   r.agih = {};
   senarai.forEach(sl => {
-    const c = calonUntuk(sl)[0];
+    const calon = calonUntuk(sl);
+    // kelas 2/3 masa: kekalkan guru ganti yang sama dengan masa sebelumnya jika dia masih kosong
+    const k0 = kelasPada(sl.gid, sl.i - 1), a0 = r.agih[sl.gid + '|' + (sl.i - 1)];
+    const sama = k0 && k0.kelas === sl.kelas && k0.subjek === sl.subjek && a0?.ganti && calon.find(c => c.g.id === a0.ganti);
+    const c = sama || calon[0];
     r.agih[sl.kunci] = { ganti: c ? c.g.id : '', sah: false, dihantar: false };
   });
   simpan(); lukisDash();
@@ -755,19 +759,20 @@ function bacaRoz(buf) {
     if (!(b[o] === 0 && i32(o + 1) === -1 && i32(o + 5) === 0 && b[o + 9] === 0 && i32(o + 10) === -1 && b[o + 14] === 0 && b[o + 15] === 0)) continue;
     while (h < hdr.length && hdr[h].off <= hujung) h++;
     const r = hdr[h]; if (!r || r.off > o || o - r.off > 1200) break;
-    const q = r.p - 1, sj = i32(q + 33), tempoh = i32(q + 16);
+    const q = r.p - 1, sj = i32(q + 33);
     const s1 = senarai(q + 37), s2 = s1 && senarai(s1.o);
-    pelajaran.push(s2 && sj >= 0 && sj < subjek.length ? { subjek: sj, kumpulan: s1.v, guru: s2.v, tempoh: tempoh > 0 && tempoh < 6 ? tempoh : 1 } : null);
+    pelajaran.push(s2 && sj >= 0 && sj < subjek.length ? { subjek: sj, kumpulan: s1.v, guru: s2.v } : null);
     hujung = o + 20; o += 15;
   }
 
-  // 6. Kad: [pelajaran] ([0]) 01 ff*4 [waktu] [?] [0] [hari bitmask] 01 00 ff*4
+  // 6. Kad: [pelajaran] ([0]) 01 ff*4 [waktu] [tempoh-1] [0] [hari bitmask] 01 00 ff*4
+  //    tempoh: 0 = 1 masa, 1 = 2 masa (cth. 10:45-11:45), 2 = 3 masa
   const kad = [];
   for (let j = hujung + 8; j < b.length - 40; j++) {
     if (i32(j) !== 1 || i32(j + 4) !== -1 || b[j + 28] !== 0 || i32(j + 29) !== -1) continue;
-    const id = i32(j - 4) === 0 && i32(j - 8) > 0 ? i32(j - 8) : i32(j - 4), w = i32(j + 8), hm = i32(j + 20);
+    const id = i32(j - 4) === 0 && i32(j - 8) > 0 ? i32(j - 8) : i32(j - 4), w = i32(j + 8), tp = i32(j + 12) + 1, hm = i32(j + 20);
     if (!pelajaran[id] || w < 0 || w > 30 || hm <= 0 || (hm & (hm - 1))) continue;
-    kad.push({ id, waktu: w, hari: Math.log2(hm) });
+    kad.push({ id, waktu: w, tempoh: tp >= 1 && tp <= 6 ? tp : 1, hari: Math.log2(hm) });
     j += 30;
   }
   if (!kad.length) throw new Error('Tiada kad jadual (jadual belum dijana dalam aSc?)');
@@ -784,7 +789,7 @@ function bacaRoz(buf) {
   for (const x of kad) {
     const L = pelajaran[x.id], sj = subjek[L.subjek].kod || subjek[L.subjek].nama;
     const kls = [...new Set(L.kumpulan.map(g => kelas[kumpKelas[g]]).filter(Boolean))].join(', ');
-    for (let t = 0; t < L.tempoh; t++) {
+    for (let t = 0; t < x.tempoh; t++) {
       guna.add(x.waktu + t);
       for (const g of L.guru) {
         if (!jadual[g]) continue;
@@ -797,9 +802,23 @@ function bacaRoz(buf) {
       }
     }
   }
-  const nWaktu = Math.max(...guna) + 1;
+  // 9. Masa loceng: rekod waktu "1","2",... diikuti jam mula, minit mula, jam tamat, minit tamat (format 12 jam)
+  const masa = [], hh = (h, m) => String(h < 7 ? h + 12 : h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  const hadMasa = rek.find(r => /^Grade \d+$/.test(r.nama))?.off || rek[idxKelas[0]].off;
+  for (let i = 10; i < hadMasa; i++) {
+    const l = b[i]; if (l < 1 || l > 2) continue;
+    const nm = str(i + 1, l); if (!/^\d+$/.test(nm) || b[i + 1 + l] !== l || str(i + 2 + l, l) !== nm) continue;
+    const o = i + 2 + 2 * l, v = [i32(o), i32(o + 4), i32(o + 8), i32(o + 12)];
+    if (v[0] < 1 || v[0] > 12 || v[2] < 1 || v[2] > 12 || v[1] < 0 || v[1] > 59 || v[3] < 0 || v[3] > 59) continue;
+    if (Number(nm) !== masa.length + 1) continue;
+    masa.push({ mula: hh(v[0], v[1]), tamat: hh(v[2], v[3]) });
+    i = o + 15;
+  }
+
+  const nWaktu = Math.max(...guna) + 1;              // waktu selepas kelas terakhir diabaikan
+  masa.length = Math.min(masa.length, nWaktu);
   const nHari = Math.max(...kad.map(x => x.hari)) + 1;
-  return { hari: hari.length >= nHari ? hari.slice(0, nHari) : null, nWaktu, guna, subjek, guru, kelas, kad, jadual };
+  return { hari: hari.length >= nHari ? hari.slice(0, nHari) : null, nWaktu, masa, guna, subjek, guru, kelas, kad, jadual };
 }
 
 const normNama = s => String(s || '').toUpperCase().replace(/[^A-Z0-9@ ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -814,7 +833,7 @@ async function pilihRoz(e) {
     <table class="induk">
       <tr><td>Guru</td><td><b>${r.guru.length}</b></td></tr><tr><td>Kelas</td><td><b>${r.kelas.length}</b></td></tr>
       <tr><td>Subjek</td><td><b>${r.subjek.length}</b></td></tr><tr><td>Kad jadual</td><td><b>${r.kad.length}</b></td></tr>
-      <tr><td>Hari</td><td><b>${r.hari ? r.hari.join(', ') : '(tidak dikenal pasti)'}</b></td></tr><tr><td>Waktu sehari</td><td><b>${r.nWaktu}</b></td></tr>
+      <tr><td>Hari</td><td><b>${r.hari ? r.hari.join(', ') : '(tidak dikenal pasti)'}</b></td></tr><tr><td>Waktu sehari</td><td><b>${r.nWaktu}</b>${r.masa.length ? ` (${fmtMasa(r.masa[0].mula)} – ${fmtMasa(r.masa[r.masa.length - 1].tamat)})` : ''}</td></tr>
     </table>
     <p class="subteks" style="margin-top:12px">Senarai guru dan jadual induk sekarang akan <b>digantikan</b>. No. telefon ${kekal} guru yang namanya sepadan akan dikekalkan. Rekod guru cuti/ganti harian akan dikosongkan.</p>
     <div class="baris"><button class="btn btnUngu" onclick="terapRoz()">✓ Import Sekarang</button><button class="btn btnPutih" onclick="tutupModal()">Batal</button></div>`);
@@ -833,8 +852,9 @@ function terapRoz() {
     S.guru.push(g); S.jadual[g.id] = r.jadual[i];
   });
   if (r.hari) { S.tetapan.hari = r.hari; HARI = r.hari; }
-  // bilangan waktu ikut fail; waktu tanpa sebarang kelas dianggap rehat
+  // bilangan & masa waktu ikut fail; waktu tanpa sebarang kelas dianggap rehat
   const slots = S.tetapan.slots;
+  r.masa.forEach((m, i) => slots[i] = { ...m, rehat: false });
   for (let i = slots.length; i < r.nWaktu; i++) {
     const [h, m] = (slots[i - 1]?.tamat || '07:20').split(':').map(Number), t = h * 60 + m + 30;
     slots.push({ mula: slots[i - 1]?.tamat || '07:20', tamat: String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'), rehat: false });
@@ -842,7 +862,7 @@ function terapRoz() {
   slots.length = r.nWaktu;
   slots.forEach((s, i) => s.rehat = !r.guna.has(i));
   simpan(); tutupModal(); isiPilihanHari(); lukisSemua(); lukisInduk();
-  toast(`Import berjaya: ${S.guru.length} guru. Semak masa setiap waktu di Tetapan.`);
+  toast(`Import berjaya: ${S.guru.length} guru, ${slots.length} waktu (${fmtMasa(slots[0].mula)} – ${fmtMasa(slots[slots.length - 1].tamat)}).`);
 }
 
 /* ---------- Upload maklumat guru secara pukal ---------- */

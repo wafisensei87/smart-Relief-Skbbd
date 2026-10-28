@@ -9,8 +9,9 @@ Sistem pengurusan jadual guru ganti (relief). Satu fail sahaja: `index.html`.
 3. Tab **📅 Jadual Induk** → **Pilih Fail .roz**: pilih fail jadual aSc Timetables (cth. `JADUAL 2026 V5.roz`).
    Semua guru, kelas, subjek, hari (Ahad–Khamis) dan waktu dibaca terus daripada fail.
    Guru contoh akan digantikan; no. telefon guru yang namanya sama dikekalkan.
-4. Tab **⚙️ Tetapan** → **Waktu Rasmi**: betulkan masa mula/tamat setiap waktu dan tandakan waktu rehat
-   (fail .roz tidak menyimpan masa loceng). Isi juga no. WhatsApp pentadbir.
+   Kelas 2 atau 3 masa (cth. 10:45–11:45) diisi pada setiap masa yang terlibat.
+4. Tab **⚙️ Tetapan** → **Waktu Rasmi**: masa loceng (W1 7:45 – W11 1:15) dibaca daripada fail; semak dan
+   tandakan waktu rehat jika perlu. Isi juga no. WhatsApp pentadbir.
 5. Tab **💬 WhatsApp Guru** → **Upload Maklumat Guru Secara Pukal**:
    - Tekan **Muat Turun Templat** untuk dapat senarai semua guru (CSV, boleh dibuka dengan Excel).
    - Isi lajur **Telefon** (dan Subjek jika perlu), simpan, kemudian **Pilih Fail Excel / CSV**.
