@@ -249,7 +249,11 @@ table.induk input{width:100%;padding:8px;border:1.5px solid var(--garis);border-
       <div class="kad">
         <h3><span class="titik" style="background:var(--kuning)"></span>Import Jadual aSc Timetables (.roz)</h3>
         <p class="subteks">Muat naik fail jadual daripada aSc Timetables (.roz). Sistem akan membaca semua guru, kelas, subjek dan waktu mengajar secara automatik. No. telefon guru sedia ada dikekalkan (dipadankan ikut nama).</p>
-        <label class="btn btnUngu">📂 Pilih Fail .roz<input type="file" id="fRoz" accept=".roz" hidden></label>
+        <div class="baris">
+          <label class="btn btnUngu">📂 Pilih Fail .roz<input type="file" id="fRoz" accept=".roz" hidden></label>
+          <button class="btn btnMerahL" id="btnResetJadual">🗑 Reset Jadual</button>
+        </div>
+        <p class="subteks" style="margin:10px 0 0">Gunakan <b>Reset Jadual</b> apabila jadual bertukar: semua kelas dalam jadual induk dikosongkan. Masa waktu (<span id="infoMasaReset"></span>), senarai guru dan no. telefon dikekalkan.</p>
       </div>
       <div class="kad">
         <h3><span class="titik"></span>Jadual Waktu Induk</h3>
@@ -633,7 +637,8 @@ async function muatTurunPng() {
 
 /* ---------- Jadual induk ---------- */
 function lukisInduk() {
-  const gid = $('indukGuru').value, h = Number($('indukHari').value);
+  const gid = $('indukGuru').value, h = Number($('indukHari').value), sl = S.tetapan.slots;
+  $('infoMasaReset').textContent = sl.length ? `W1–W${sl.length}, ${fmtMasa(sl[0].mula)} – ${fmtMasa(sl[sl.length - 1].tamat)}` : '-';
   $('badanInduk').innerHTML = S.tetapan.slots.map((s, i) => {
     if (s.rehat) return `<tr><td><span class="wBadge" style="background:#ca8a04">${slotLabel(i)}</span></td><td class="mono">${masaSlot(i)}</td><td colspan="3" style="color:#a16207;font-weight:600">REHAT</td></tr>`;
     const k = S.jadual[gid]?.[h]?.[i] || {}, rk = k.rakan || [];
@@ -871,6 +876,35 @@ function terapRoz() {
   toast(`Import berjaya: ${S.guru.length} guru, ${slots.length} waktu (${fmtMasa(slots[0].mula)} – ${fmtMasa(slots[slots.length - 1].tamat)}).`);
 }
 
+/* ---------- Reset jadual (apabila jadual bertukar) ---------- */
+function modalResetJadual() {
+  const sl = S.tetapan.slots, n = S.guru.filter(g => Object.values(S.jadual[g.id] || {}).some(d => Object.keys(d).length)).length;
+  bukaModal(`<h3>🗑 Reset Jadual</h3>
+    <p class="subteks">Tindakan ini akan:</p>
+    <ul style="margin:0 0 12px;padding-left:20px;font-size:13px;line-height:1.7">
+      <li>Mengosongkan jadual induk <b>${n} guru</b> (semua kelas, subjek dan guru pairing)</li>
+      <li>Mengosongkan rekod guru cuti &amp; guru ganti harian</li>
+      <li><b>Mengekalkan</b> masa waktu: ${sl.length} waktu, ${fmtMasa(sl[0].mula)} – ${fmtMasa(sl[sl.length - 1].tamat)}</li>
+      <li><b>Mengekalkan</b> senarai guru, no. telefon, tanda pentadbir dan tetapan</li>
+    </ul>
+    <label style="display:block;font-size:13px;margin-bottom:12px"><input type="checkbox" id="cbResetGuru"> Padam juga senarai guru (jika guru juga bertukar)</label>
+    <p class="subteks">Disarankan muat turun sandaran dahulu supaya jadual lama boleh dipulihkan.</p>
+    <div class="baris">
+      <button class="btn btnPutih" onclick="$('btnEksport').click()">⬇ Sandaran Dahulu</button>
+      <button class="btn btnMerahL" onclick="resetJadual()">🗑 Reset Sekarang</button>
+      <button class="btn btnPutih" onclick="tutupModal()">Batal</button>
+    </div>`);
+}
+function resetJadual() {
+  const padamGuru = $('cbResetGuru').checked;
+  if (!confirm(padamGuru ? 'Padam SEMUA jadual dan senarai guru?' : 'Kosongkan SEMUA jadual induk?')) return;
+  if (padamGuru) S.guru = [];
+  S.jadual = {}; S.guru.forEach(g => S.jadual[g.id] = {});
+  S.harian = {};                                  // rekod ganti lama merujuk jadual lama
+  simpan(); tutupModal(); lukisSemua(); lukisInduk();
+  toast('Jadual dikosongkan. Import fail .roz baharu atau isi jadual secara manual.');
+}
+
 /* ---------- Upload maklumat guru secara pukal ---------- */
 function prosesBaris(baris) {
   baris = baris.map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
@@ -1031,6 +1065,7 @@ $('indukGuru').onchange = $('indukHari').onchange = lukisInduk;
 $('btnSimpanInduk').onclick = simpanInduk;
 $('btnSalinHari').onclick = salinHari;
 $('fRoz').onchange = pilihRoz;
+$('btnResetJadual').onclick = modalResetJadual;
 $('fPukal').onchange = pilihPukal;
 $('btnTemplat').onclick = muatTurunTemplat;
 $('btnPukal').onclick = () => { prosesBaris(pecahTeks($('tPukal').value)); $('tPukal').value = ''; };

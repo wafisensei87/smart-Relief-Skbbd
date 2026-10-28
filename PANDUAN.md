@@ -29,6 +29,12 @@ Sistem pengurusan jadual guru ganti (relief). Satu fail sahaja: `index.html`.
 2. Diutamakan guru yang tiada kelas sebelum & selepas slot itu.
 3. Diutamakan beban sehari lebih rendah: ≤3 waktu (Pilihan 1), 4 waktu (Pilihan 2), ≥5 waktu (Pilihan 3).
 
+## Jadual bertukar (Reset Jadual)
+Tab **📅 Jadual Induk** → **🗑 Reset Jadual**: mengosongkan semua kelas dalam jadual induk dan rekod
+guru ganti harian. Masa waktu (W1 7:45 – W11 1:15), senarai guru, no. telefon dan tanda pentadbir dikekalkan.
+Tekan **Sandaran Dahulu** sebelum reset jika mahu simpan jadual lama. Kemudian import fail .roz baharu
+atau isi jadual secara manual.
+
 ## Pentadbir tidak dijadikan guru ganti
 Guru bertanda **Pentadbir** (tab WhatsApp Guru) tidak akan dipilih sebagai guru ganti.
 Nama dengan (GB), (PKP), (PK HEM), (PK KO) ditanda secara automatik; tanda/nyahtanda sendiri jika perlu.
