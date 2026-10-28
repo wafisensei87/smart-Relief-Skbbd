@@ -752,10 +752,19 @@ function bacaRoz(buf) {
   while (k < idxKelas[0] && jenisGuru(rek[k])) { guru.push({ nama: rek[k].nama, pendek: rek[k].pendek }); k++; }
   if (!subjek.length || !guru.length) throw new Error('Tidak dapat membaca senarai subjek/guru');
 
-  // 4. Kumpulan (Seluruh kelas, Kumpulan 1, ...) disusun ikut kelas
-  const kump = rek.slice(k, idxKelas[0]), per = kump.length / kelas.length, kumpKelas = [];
-  let c = -1;
-  kump.forEach((g, j) => { if (Number.isInteger(per) ? j % per === 0 : g.nama === kump[0].nama) c++; kumpKelas.push(Math.max(c, 0)); });
+  // 4. Kumpulan (Seluruh kelas, Kumpulan 1, ...) → kelas.
+  //    Setiap rekod kelas menyimpan senarai indeks kumpulannya: [nama pendek] [00] [int] [bil] [indeks...].
+  //    Turutan kumpulan TIDAK semestinya ikut turutan kelas (kelas yang ditambah kemudian berada di hujung).
+  const kump = rek.slice(k, idxKelas[0]), kumpKelas = new Array(kump.length).fill(-1);
+  idxKelas.forEach((ki, c) => {
+    let o = rek[ki].p; o += 1 + b[o]; o += 1 + b[o];
+    const n = i32(o + 4);
+    if (n > 0 && n <= 50) for (let j = 0; j < n; j++) { const g = i32(o + 8 + 4 * j); if (g >= 0 && g < kump.length) kumpKelas[g] = c; }
+  });
+  if (kumpKelas.includes(-1)) {                       // cadangan: andaikan kumpulan tersusun ikut kelas
+    const per = kump.length / kelas.length; let c = -1;
+    kump.forEach((g, j) => { if (Number.isInteger(per) ? j % per === 0 : g.nama === kump[0].nama) c++; if (kumpKelas[j] < 0) kumpKelas[j] = Math.max(c, 0); });
+  }
 
   // 5. Pelajaran (indeks = turutan); setiap satu diakhiri corak 00 ff*4 00*5 ff*4 00 00 [id]
   const senarai = o => { const n = i32(o); if (n < 0 || n > 200 || o + 4 + n * 4 > b.length) return null; const v = []; for (let j = 0; j < n; j++) v.push(i32(o + 4 + j * 4)); return { v, o: o + 4 + n * 4 }; };
