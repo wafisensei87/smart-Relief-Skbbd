@@ -4,6 +4,7 @@ Sistem pengurusan jadual guru ganti (relief). Satu fail sahaja: `index.html`.
 
 ## Cara guna
 1. Buka `index.html` dengan Chrome / Edge (klik dua kali).
+   Sistem bermula **kosong** (tiada guru, tiada jadual) dengan waktu rasmi W1–W11, 7:45 – 1:15.
 2. Log masuk kali pertama: ID `admin`, kata laluan `admin123`.
    **Tukar segera** di tab ⚙️ Tetapan.
 3. Tab **📅 Jadual Induk** → **Pilih Fail .roz**: pilih fail jadual aSc Timetables (cth. `JADUAL 2026 V5.roz`).

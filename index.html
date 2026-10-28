@@ -395,46 +395,41 @@ function sha256(teks) {
 }
 async function hash(teks) { return sha256('sr:' + teks); }
 
-/* ---------- Data contoh ---------- */
+/* ---------- Data permulaan (kosong) ---------- */
+const VERSI_DATA = 2;
+// Waktu rasmi lalai: W1–W11, 30 minit setiap satu, bermula 7:45
 function slotLalai() {
-  const t = [['07:20','07:50'],['07:50','08:20'],['08:20','08:50'],['08:50','09:20'],['09:20','09:50'],['09:50','10:10',1],
-    ['10:10','10:40'],['10:40','11:10'],['11:10','11:40'],['11:40','12:10'],['12:10','12:40'],['12:40','13:10'],['13:10','13:40'],['13:40','14:10']];
-  return t.map(([a, b, r]) => ({ mula: a, tamat: b, rehat: !!r }));
-}
-
-function dataContoh(passHash) {
-  const nama = [['Cikgu Aminah binti Yusof','BM'],['Cikgu Rahman bin Ali','SN'],['Cikgu Siti Nur Aisyah','BI'],['Cikgu Lim Wei Ling','MT'],
-    ['Cikgu Kumaravel a/l Raju','PJ'],['Cikgu Nurul Huda','PI'],['Cikgu Faizal bin Omar','PSV'],['Cikgu Tan Mei Fong','BI'],
-    ['Cikgu Zulkifli bin Hassan','SJ'],['Cikgu Rosmah binti Daud','BM'],['Cikgu Hafiz bin Kamal','RBT'],['Cikgu Nor Azlina','MZ'],
-    ['Cikgu Ahmad Syukri','MT'],['Cikgu Farah Wahida','SN']];
-  const kelas = ['1 Advance','2 Brilliant','3 Creative','4 Diligent','5 Excellent','6 Fantastic'];
-  const guru = nama.map(([n, k]) => ({ id: uid(), nama: n, kod: k, tel: '' }));
-  const slots = slotLalai();
-  // penjana rawak berbiji supaya data contoh sentiasa sama
-  let biji = 7; const rawak = () => (biji = (biji * 16807) % 2147483647) / 2147483647;
-  const jadual = {};
-  guru.forEach((g, gi) => {
-    jadual[g.id] = {};
-    HARI.forEach((_, h) => {
-      jadual[g.id][h] = {};
-      const beban = 2 + Math.floor(rawak() * 4);    // 2–5 waktu sehari
-      const calon = slots.map((s, i) => i).filter(i => !slots[i].rehat).sort(() => rawak() - .5).slice(0, beban);
-      calon.forEach(i => jadual[g.id][h][i] = { kelas: kelas[(gi + i + h) % kelas.length], subjek: g.kod });
-    });
+  return Array.from({ length: 11 }, (_, i) => {
+    const f = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    return { mula: f(465 + i * 30), tamat: f(495 + i * 30), rehat: false };
   });
+}
+function dataKosong(passHash) {
   return {
-    tetapan: { sekolah: SEKOLAH_LALAI, logo: '', telAdmin: '', adminId: 'admin', passHash, slots, hari: [...HARI] },
-    guru, jadual, harian: {}
+    versi: VERSI_DATA,
+    tetapan: { sekolah: SEKOLAH_LALAI, logo: '', telAdmin: '', adminId: 'admin', passHash, slots: slotLalai(), hari: [...HARI] },
+    guru: [], jadual: {}, harian: {}
   };
 }
+// nama guru rekaan daripada versi awal sistem
+const GURU_CONTOH = new Set(['Cikgu Aminah binti Yusof','Cikgu Rahman bin Ali','Cikgu Siti Nur Aisyah','Cikgu Lim Wei Ling',
+  'Cikgu Kumaravel a/l Raju','Cikgu Nurul Huda','Cikgu Faizal bin Omar','Cikgu Tan Mei Fong','Cikgu Zulkifli bin Hassan',
+  'Cikgu Rosmah binti Daud','Cikgu Hafiz bin Kamal','Cikgu Nor Azlina','Cikgu Ahmad Syukri','Cikgu Farah Wahida']);
 
 function simpan() { try { localStorage.setItem(KUNCI, JSON.stringify(S)); } catch (e) { toast('Gagal simpan: storan pelayar penuh atau disekat'); } }
 async function muat() {
   try { S = JSON.parse(localStorage.getItem(KUNCI)); } catch (e) { S = null; }
-  if (!S) { S = dataContoh(await hash('admin123')); simpan(); }
+  if (!S) { S = dataKosong(await hash('admin123')); simpan(); }
   // data versi lama
   if (S.tetapan.sekolah === 'SK Contoh') S.tetapan.sekolah = SEKOLAH_LALAI;
   if (!S.tetapan.hari) S.tetapan.hari = [...HARI];
+  if ((S.versi || 1) < VERSI_DATA) {
+    // mula semula dengan jadual kosong; guru rekaan dibuang, guru sebenar & no. telefon dikekalkan
+    S.guru = S.guru.filter(g => !GURU_CONTOH.has(g.nama));
+    S.jadual = {}; S.guru.forEach(g => S.jadual[g.id] = {});
+    S.harian = {}; S.tetapan.slots = slotLalai(); S.versi = VERSI_DATA;
+    simpan();
+  }
   S.guru.forEach(g => { if (g.pentadbir === undefined) g.pentadbir = RE_PENTADBIR.test(g.nama); });
   HARI = S.tetapan.hari;
 }
@@ -569,7 +564,7 @@ function lukisDash() {
       <div class="meta">${bebanHari(g.id)} waktu</div>
       ${cuti ? `<select onchange="tukarSebab('${g.id}',this.value)">${SEBAB.map(s => `<option ${s === cuti ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}</div>
       <button class="togol ${cuti ? 'cuti' : 'hadir'}" onclick="togolCuti('${g.id}')">${cuti ? 'CUTI' : 'HADIR'}</button></div>`;
-  }).join('') || '<p class="subteks">Tiada guru. Tambah di tab WhatsApp Guru.</p>';
+  }).join('') || '<p class="subteks">Tiada guru lagi. Import fail jadual .roz di tab Jadual Induk, atau tambah guru di tab WhatsApp Guru.</p>';
 
   $('badanGanti').innerHTML = senarai.map(s => {
     const kolumMasa = `<td><span class="wBadge">${slotLabel(s.i)}</span><div class="masa mono">${masaSlot(s.i)}</div></td>
@@ -867,8 +862,8 @@ function terapRoz() {
   const slots = S.tetapan.slots;
   r.masa.forEach((m, i) => slots[i] = { ...m, rehat: false });
   for (let i = slots.length; i < r.nWaktu; i++) {
-    const [h, m] = (slots[i - 1]?.tamat || '07:20').split(':').map(Number), t = h * 60 + m + 30;
-    slots.push({ mula: slots[i - 1]?.tamat || '07:20', tamat: String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'), rehat: false });
+    const [h, m] = (slots[i - 1]?.tamat || '07:45').split(':').map(Number), t = h * 60 + m + 30;
+    slots.push({ mula: slots[i - 1]?.tamat || '07:45', tamat: String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'), rehat: false });
   }
   slots.length = r.nWaktu;
   slots.forEach((s, i) => s.rehat = !r.guna.has(i));
@@ -1097,7 +1092,7 @@ $('tLogo').onchange = e => {
 };
 $('btnTambahSlot').onclick = () => {
   S.tetapan.slots = bacaSlot();
-  const akhir = S.tetapan.slots.at(-1)?.tamat || '07:20';
+  const akhir = S.tetapan.slots.at(-1)?.tamat || '07:45';
   const [h, m] = akhir.split(':').map(Number), t = h * 60 + m + 30;
   S.tetapan.slots.push({ mula: akhir, tamat: String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'), rehat: false });
   lukisTetapan();
@@ -1114,8 +1109,8 @@ $('fImport').onchange = e => {
     .catch(() => toast('Fail sandaran tidak sah'));
 };
 $('btnPadam').onclick = async () => {
-  if (!confirm('Padam SEMUA data dan kembali ke data contoh? Tindakan ini tidak boleh dibatalkan.')) return;
-  S = dataContoh(await hash('admin123')); simpan(); location.reload();
+  if (!confirm('Padam SEMUA data (guru, jadual, tetapan, kata laluan)? Sistem akan bermula kosong. Tindakan ini tidak boleh dibatalkan.')) return;
+  S = dataKosong(await hash('admin123')); simpan(); location.reload();
 };
 
 mula();
